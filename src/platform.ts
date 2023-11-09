@@ -326,7 +326,8 @@ export class LutronRadioRA3Platform
         accessory.context.bridgeID = bridge.bridgeID;
 
         switch (device.DeviceType) {
-            case 'SunnataHybridKeypad': {
+            case 'SunnataHybridKeypad':
+            case 'SunnataKeypad': {
                 const keypad = new SunnataKeypad(this, accessory, bridge, this.options);
                 return keypad.initialize();
             }
