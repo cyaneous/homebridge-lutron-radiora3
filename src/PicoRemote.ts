@@ -1,7 +1,7 @@
 import { Service, PlatformAccessory } from 'homebridge';
 
-import { GlobalOptions, LutronCasetaLeap, DeviceWireResult, DeviceWireResultType } from './platform';
-import { ButtonTracker } from './ButtonState';
+import { GlobalOptions, LutronRadioRA3Platform, DeviceWireResult, DeviceWireResultType } from './platform';
+import { ButtonTracker } from './ButtonTracker';
 import { ExceptionDetail, OneButtonStatusEvent, Response, SmartBridge, ButtonDefinition } from 'lutron-leap';
 
 import { inspect } from 'util';
@@ -100,7 +100,7 @@ export class PicoRemote {
     private trackers: Map<string, ButtonTracker> = new Map();
 
     constructor(
-        private readonly platform: LutronCasetaLeap,
+        private readonly platform: LutronRadioRA3Platform,
         private readonly accessory: PlatformAccessory,
         private readonly bridge: SmartBridge,
         private readonly options: GlobalOptions,
@@ -128,7 +128,7 @@ export class PicoRemote {
 
         let bgs;
         try {
-            bgs = await this.bridge.getButtonGroupsFromDevice(this.accessory.context.device);
+            bgs = await this.bridge.getDeviceButtonGroups(this.accessory.context.device);
         } catch (e) {
             this.platform.log.error('Failed to get button group(s) belonging to', fullName, e);
             return {

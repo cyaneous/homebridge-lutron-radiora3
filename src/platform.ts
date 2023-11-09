@@ -2,6 +2,8 @@ import { EventEmitter } from 'events';
 import {
     BridgeFinder,
     BridgeNetInfo,
+    AreaDefinition,
+    ControlStationDefinition,
     DeviceDefinition,
     LEAP_PORT,
     LeapClient,
@@ -15,9 +17,8 @@ import { API, APIEvent, DynamicPlatformPlugin, Logging, PlatformAccessory, Platf
 import TypedEmitter from 'typed-emitter';
 
 import { PLUGIN_NAME, PLATFORM_NAME } from './settings';
-import { SerenaTiltOnlyWoodBlinds } from './SerenaTiltOnlyWoodBlinds';
+import { SunnataKeypad } from './SunnataKeypad';
 import { PicoRemote } from './PicoRemote';
-import { OccupancySensor } from './OccupancySensor';
 
 import fs from 'fs';
 import v8 from 'v8';
@@ -30,7 +31,6 @@ type PlatformEvents = {
 // see config.schema.json
 export interface GlobalOptions {
     filterPico: boolean;
-    filterBlinds: boolean;
     clickSpeedLong: 'quick' | 'default' | 'relaxed' | 'disabled';
     clickSpeedDouble: 'quick' | 'default' | 'relaxed' | 'disabled';
     logSSLKeyDangerous: boolean;
@@ -66,7 +66,7 @@ export interface WireError {
     reason: string;
 }
 
-export class LutronCasetaLeap
+export class LutronRadioRA3Platform
     extends (EventEmitter as new () => TypedEmitter<PlatformEvents>)
     implements DynamicPlatformPlugin {
     private readonly accessories: Map<string, PlatformAccessory> = new Map();
@@ -78,7 +78,7 @@ export class LutronCasetaLeap
     constructor(public readonly log: Logging, public readonly config: PlatformConfig, public readonly api: API) {
         super();
 
-        log.info('LutronCasetaLeap starting up...');
+        log.info('Lutron RadioRA 3 starting up...');
 
         process.on('warning', (e) => this.log.warn(`Got ${e.name} process warning: ${e.message}:\n${e.stack}`));
 
@@ -226,38 +226,57 @@ export class LutronCasetaLeap
 
                 this.bridgeMgr.set(bridge.bridgeID, bridge);
                 this.processAllDevices(bridge);
-
             }
-
         } else {
             this.log.info('no credentials from bridge ID', bridgeInfo.bridgeid);
         }
     }
 
     private processAllDevices(bridge: SmartBridge) {
-        bridge.getDeviceInfo().then(async (devices: DeviceDefinition[]) => {
-            const results: PromiseSettledResult<string>[] = await Promise.allSettled(
-                devices.map((device: DeviceDefinition) => this.processDevice(bridge, device)),
-            );
-            for (const result of results) {
-                switch (result.status) {
-                    case 'fulfilled': {
-                        this.log.info(`Device setup finished: ${result.value}`);
-                        break;
-                    }
-                    case 'rejected': {
-                        this.log.error(`Failed to process device: ${result.reason}`);
-                        break;
-                    }
+        bridge.getAreas().then(async (areas: AreaDefinition[]) => {
+            for (const area of areas) {
+                if (!area.IsLeaf) {
+                    continue;
                 }
+                bridge.getAreaControlStations(area).then(async (controlStations: ControlStationDefinition[]) => {
+                    for (const controlStation of controlStations) {
+                        if (controlStation.AssociatedGangedDevices === undefined) {
+                            continue;
+                        }
+                        for (const gangedDevice of controlStation.AssociatedGangedDevices) {
+                            bridge.getDevice(gangedDevice.Device).then(async (device: DeviceDefinition) => {
+                                if (device.AddressedState === 'Addressed') {
+                                    this.processDevice(bridge, device, area.Name + ' ' + device.Name);
+                                }
+                            });
+                        }
+                    }
+                });
             }
         });
+
+        // bridge.getDeviceInfo().then(async (devices: DeviceDefinition[]) => {
+        //     const results: PromiseSettledResult<string>[] = await Promise.allSettled(
+        //         devices.map((device: DeviceDefinition) => this.processDevice(bridge, device)),
+        //     );
+        //     for (const result of results) {
+        //         switch (result.status) {
+        //             case 'fulfilled': {
+        //                 this.log.info(`Device setup finished: ${result.value}`);
+        //                 break;
+        //             }
+        //             case 'rejected': {
+        //                 this.log.error(`Failed to process device: ${result.reason}`);
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // });
 
         bridge.on('unsolicited', this.handleUnsolicitedMessage.bind(this));
     }
 
-    async processDevice(bridge: SmartBridge, d: DeviceDefinition): Promise<string> {
-        const fullName = d.FullyQualifiedName.join(' ');
+    async processDevice(bridge: SmartBridge, d: DeviceDefinition, fullName: string): Promise<string> {
         const uuid = this.api.hap.uuid.generate(d.SerialNumber.toString());
 
         let accessory: PlatformAccessory | undefined = this.accessories.get(uuid);
@@ -269,7 +288,7 @@ export class LutronCasetaLeap
             this.log.debug(`Device ${fullName} not found in accessory cache`);
         }
 
-        const result = await this.wireAccessory(accessory, bridge, d);
+        const result = await this.wireAccessory(accessory, bridge, d, fullName);
         accessory.displayName = fullName;
         switch (result.kind) {
             case DeviceWireResultType.Error: {
@@ -301,30 +320,15 @@ export class LutronCasetaLeap
         accessory: PlatformAccessory,
         bridge: SmartBridge,
         device: DeviceDefinition,
+        fullName: string,
     ): Promise<DeviceWireResult> {
-        const fullName = device.FullyQualifiedName.join(' ');
         accessory.context.device = device;
         accessory.context.bridgeID = bridge.bridgeID;
 
         switch (device.DeviceType) {
-            // serena blinds
-            case 'SerenaTiltOnlyWoodBlind': {
-                this.log.info('Found a Serena blind:', fullName);
-
-                if (this.options.filterBlinds) {
-                    return {
-                        kind: DeviceWireResultType.Skipped,
-                        reason: 'Serena wood blinds support disabled.',
-                    };
-                }
-
-                // SIDE EFFECT: this constructor mutates the accessory object
-                new SerenaTiltOnlyWoodBlinds(this, accessory, bridge);
-
-                return {
-                    kind: DeviceWireResultType.Success,
-                    name: fullName,
-                };
+            case 'SunnataHybridKeypad': {
+                const keypad = new SunnataKeypad(this, accessory, bridge, this.options);
+                return keypad.initialize();
             }
 
             // supported Pico remotes
@@ -341,14 +345,6 @@ export class LutronCasetaLeap
                 // SIDE EFFECT: this constructor mutates the accessory object
                 const remote = new PicoRemote(this, accessory, bridge, this.options);
                 return remote.initialize();
-            }
-
-            // occupancy sensors
-            case 'RPSOccupancySensor': {
-                this.log.info(`Found a ${device.DeviceType} occupancy sensor ${fullName}`);
-
-                const sensor = new OccupancySensor(this, accessory, bridge);
-                return sensor.initialize();
             }
 
             // known devices that are not exposed to homekit, pending support
@@ -373,14 +369,12 @@ export class LutronCasetaLeap
         this.log.debug('bridge', bridgeID, 'got unsolicited message', response);
 
         if (response.CommuniqueType === 'UpdateResponse' && response.Header.Url === '/device/status/deviceheard') {
-
             const heardDevice = (response.Body! as OneDeviceStatus).DeviceStatus.DeviceHeard;
             this.log.info(`New ${heardDevice.DeviceType} s/n ${heardDevice.SerialNumber}. Triggering refresh in 30s.`);
             const bridge = this.bridgeMgr.get(bridgeID);
             if (bridge !== undefined) {
                 setTimeout(() => this.processAllDevices(bridge), 30000);
             }
-
         } else {
             this.emit('unsolicited', response);
         }

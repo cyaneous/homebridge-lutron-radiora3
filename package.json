@@ -1,15 +1,15 @@
 {
-    "displayName": "Lutron Caseta LEAP",
-    "name": "homebridge-lutron-caseta-leap",
-    "version": "2.5.3",
-    "description": "Support for the Lutron Caseta Smart Bridge 2",
+    "displayName": "Lutron RadioRA 3",
+    "name": "homebridge-lutron-radiora3",
+    "version": "0.0.1",
+    "description": "Homebridge support for Lutron RadioRA 3 keypads, etc.",
     "license": "Apache-2.0",
     "repository": {
         "type": "git",
-        "url": "git://github.com/thenewwazoo/homebridge-lutron-caseta-leap.git"
+        "url": "git://github.com/cyaneous/homebridge-lutron-radiora3.git"
     },
     "bugs": {
-        "url": "https://github.com/thenewwazoo/homebridge-lutron-caseta-leap/issues"
+        "url": "https://github.com/cyaneous/homebridge-lutron-radiora3/issues"
     },
     "engines": {
         "node": ">=10.17.0",
@@ -26,10 +26,11 @@
     "keywords": [
         "homebridge-plugin",
         "lutron",
-        "caseta",
+        "radiora",
+        "radiora3",
         "lutron-leap",
-        "lutron-caseta",
-        "lutron-smart-bridge"
+        "lutron-radiora3",
+        "lutron-radiora"
     ],
     "dependencies": {
         "@homebridge/plugin-ui-utils": "^0.0.19",

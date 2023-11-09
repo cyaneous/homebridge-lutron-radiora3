@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "LutronCasetaLeap",
+  "pluginAlias": "LutronRadioRA3",
   "pluginType": "platform",
   "customUi": true,
   "singular": true,
@@ -9,7 +9,7 @@
       "name": {
         "type": "string",
         "title": "Name",
-        "default": "Lutron",
+        "default": "Lutron RadioRA 3",
         "required": true
       },
       "options": {
@@ -18,10 +18,6 @@
           "filterPico": {
             "type": "boolean",
             "title": "Exclude Pico remotes that are associated with devices directly or in the Lutron app"
-          },
-          "filterBlinds": {
-            "type": "boolean",
-            "title": "Exclude Serena wood blinds from this plugin"
           },
           "clickSpeed": {
             "type": "string",
@@ -57,12 +53,6 @@
       "items": [
         {
           "key": "options.filterPico",
-          "notitle": false,
-          "type": "boolean",
-          "flex": "1 1 150px"
-        },
-        {
-          "key": "options.filterBlinds",
           "notitle": false,
           "type": "boolean",
           "flex": "1 1 150px"
