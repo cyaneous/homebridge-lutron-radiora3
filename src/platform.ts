@@ -10,7 +10,7 @@ import {
     OneDeviceStatus,
     Response,
     Processor,
-} from 'lutron-leap';
+} from './leap';
 
 import { API, APIEvent, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from 'homebridge';
 
