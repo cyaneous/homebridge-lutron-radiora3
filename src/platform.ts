@@ -328,6 +328,7 @@ export class LutronRadioRA3Platform
         switch (device.DeviceType) {
             case 'SunnataHybridKeypad':
             case 'SunnataKeypad': {
+                this.log.info(`Found a ${device.DeviceType} keypad: ${fullName}`);
                 const keypad = new SunnataKeypad(this, accessory, processor, this.options);
                 return keypad.initialize();
             }
