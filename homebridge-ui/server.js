@@ -1,5 +1,5 @@
 const { HomebridgePluginUiServer, RequestError } = require('@homebridge/plugin-ui-utils');
-const { BridgeFinder, LeapClient, PairingClient } = require('lutron-leap');
+const { ProcessorFinder, LeapClient, PairingClient } = require('lutron-leap');
 
 const forge = require('node-forge');
 
@@ -8,12 +8,12 @@ class PluginUiServer extends HomebridgePluginUiServer {
         // super() MUST be called first
         super();
 
-        this.finder = new BridgeFinder();
-        this.finder.on('discovered', (bridgeInfo) => {
-            this.pushEvent('discovered', bridgeInfo);
+        this.finder = new ProcessorFinder();
+        this.finder.on('discovered', (processorNetInfo) => {
+            this.pushEvent('discovered', processorNetInfo);
         });
 
-        this.onRequest('/search', this.findBridges.bind(this));
+        this.onRequest('/search', this.findProcessors.bind(this));
         this.onRequest('/connect', this.doConnect.bind(this));
         this.onRequest('/associate', this.doAssociate.bind(this));
 
@@ -21,26 +21,26 @@ class PluginUiServer extends HomebridgePluginUiServer {
         this.ready();
     }
 
-    async findBridges() {
+    async findProcessors() {
         this.finder.beginSearching();
     }
 
-    async doConnect({ secrets, bridgeid, ipAddr }) {
-        console.log('Got request to connect', bridgeid, 'at', ipAddr, ' with secrets', JSON.stringify(secrets));
+    async doConnect({ secrets, processorID, ipAddress }) {
+        console.log('Got request to connect', processorID, 'at', ipAddress, ' with secrets', JSON.stringify(secrets));
         try {
-            const client = new LeapClient(ipAddr, 8081 /*TODO magic number*/, secrets.ca, secrets.key, secrets.cert);
+            const client = new LeapClient(ipAddress, 8081 /*TODO magic number*/, secrets.ca, secrets.key, secrets.cert);
             await client.connect();
-            console.log('client connected to', bridgeid, ipAddr);
+            console.log('client connected to', processorID, ipAddress);
             // TODO actually do a ping here, maybe return LEAP version?
         } catch (e) {
-            console.log('failed to connect to', bridgeid, e);
-            this.pushEvent('failed', { bridgeid: bridgeid, reason: e.message });
+            console.log('failed to connect to', processorID, e);
+            this.pushEvent('failed', { processorID: processorID, reason: e.message });
             throw e;
         }
-        this.pushEvent('connected', bridgeid);
+        this.pushEvent('connected', processorID);
     }
 
-    async doAssociate({ bridgeid, ipAddr }) {
+    async doAssociate({ processorID, ipAddress }) {
         /***
          * This is kind of a long, ugly one. Here's what this does:
          * - Creates a new PairingClient w/ some default SSL credentials
@@ -48,19 +48,19 @@ class PluginUiServer extends HomebridgePluginUiServer {
          *   that the button has been pressed.
          * - Generate a new RSA keypair
          * - Create a certification signing request (PKCS#10)
-         * - Submit it to the bridge and wait for a special kind of response
+         * - Submit it to the processor and wait for a special kind of response
          *   that includes the signed certificate
          * - Return the newly-generated privkey, cert, and CA to the UI
          ***/
 
         // Create a new pairing client w/ some default SSL credentials
-        console.log('Got request to associate with', bridgeid, 'at', ipAddr);
-        const client = new PairingClient(ipAddr, 8083 /*TODO magic number*/);
+        console.log('Got request to associate with', processorID, 'at', ipAddress);
+        const client = new PairingClient(ipAddress, 8083 /*TODO magic number*/);
         try {
             await client.connect();
-            console.log('association phase connected', bridgeid, ipAddr);
+            console.log('association phase connected', processorID, ipAddress);
         } catch (e) {
-            console.log('failed to associate', bridgeid, ipAddr, e);
+            console.log('failed to associate', processorID, ipAddress, e);
             throw new Error('Initial associate failed!');
         }
 
@@ -103,13 +103,13 @@ class PluginUiServer extends HomebridgePluginUiServer {
         csr.setSubject([
             {
                 name: 'commonName',
-                value: 'homebridge-lutron-caseta-leap',
+                value: 'homebridge-lutron-radiora3',
             },
         ]);
         csr.sign(keys.privateKey);
         const csrText = forge.pki.certificationRequestToPem(csr);
 
-        // Submit it to the bridge and wait for a special kind of response that
+        // Submit it to the processor and wait for a special kind of response that
         // includes the signed certificate
         let certResult;
         try {
@@ -133,10 +133,10 @@ class PluginUiServer extends HomebridgePluginUiServer {
 
         // Return the newly-generated privkey, cert, and CA to the UI
         this.pushEvent('associated', {
-            bridgeid: bridgeid,
-            ipAddr: ipAddr,
+            processorID: processorID,
+            ipAddress: ipAddress,
             secrets: {
-                bridgeid: bridgeid,
+                processorID: processorID,
                 ca: certResult.Body.SigningResult.RootCertificate,
                 cert: certResult.Body.SigningResult.Certificate,
                 key: forge.pki.privateKeyToPem(keys.privateKey),

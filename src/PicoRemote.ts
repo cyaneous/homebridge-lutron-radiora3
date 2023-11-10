@@ -2,7 +2,7 @@ import { Service, PlatformAccessory } from 'homebridge';
 
 import { GlobalOptions, LutronRadioRA3Platform, DeviceWireResult, DeviceWireResultType } from './platform';
 import { ButtonTracker } from './ButtonTracker';
-import { ExceptionDetail, OneButtonStatusEvent, Response, SmartBridge, ButtonDefinition } from 'lutron-leap';
+import { ExceptionDetail, OneButtonStatusEvent, Response, Processor, ButtonDefinition } from 'lutron-leap';
 
 import { inspect } from 'util';
 
@@ -102,7 +102,7 @@ export class PicoRemote {
     constructor(
         private readonly platform: LutronRadioRA3Platform,
         private readonly accessory: PlatformAccessory,
-        private readonly bridge: SmartBridge,
+        private readonly processor: Processor,
         private readonly options: GlobalOptions,
     ) {}
 
@@ -128,7 +128,7 @@ export class PicoRemote {
 
         let bgs;
         try {
-            bgs = await this.bridge.getDeviceButtonGroups(this.accessory.context.device);
+            bgs = await this.processor.getDeviceButtonGroups(this.accessory.context.device);
         } catch (e) {
             this.platform.log.error('Failed to get button group(s) belonging to', fullName, e);
             return {
@@ -155,7 +155,7 @@ export class PicoRemote {
         let buttons: ButtonDefinition[] = [];
         for (const bg of bgs) {
             try {
-                buttons = buttons.concat(await this.bridge.getButtonsFromGroup(bg));
+                buttons = buttons.concat(await this.processor.getButtonsFromGroup(bg));
             } catch (e) {
                 this.platform.log.error('Failed to get buttons from button group', bg.href);
                 return {
@@ -230,12 +230,12 @@ export class PicoRemote {
             );
 
             this.platform.log.debug(`subscribing to ${button.href} events`);
-            this.bridge.subscribeToButton(button, this.handleEvent.bind(this));
+            this.processor.subscribeToButton(button, this.handleEvent.bind(this));
 
             // when the connection is lost, so are subscriptions.
-            this.bridge.on('disconnected', () => {
+            this.processor.on('disconnected', () => {
                 this.platform.log.debug(`re-subscribing to ${button.href} events after connection loss`);
-                this.bridge.subscribeToButton(button, this.handleEvent.bind(this));
+                this.processor.subscribeToButton(button, this.handleEvent.bind(this));
             });
         }
 

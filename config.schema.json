@@ -36,7 +36,7 @@
         "items": {
           "type": "object",
           "properties": {
-            "bridgeid": { "type": "string" },
+            "processorID": { "type": "string" },
             "ca": { "type": "string" },
             "key": { "type": "string" },
             "cert": { "type": "string" }
@@ -73,11 +73,11 @@
         "displayFlex": true,
         "items": [
           {
-            "key": "secrets[].bridgeid",
+            "key": "secrets[].processorID",
             "flex": "1 1 50px",
             "notitle": false,
-            "title": "Bridge ID Number (hex of serial number)",
-            "placeholder": "Bridge ID",
+            "title": "Processor ID Number (hex of serial number)",
+            "placeholder": "Processor ID",
             "type": "string"
           },
           {

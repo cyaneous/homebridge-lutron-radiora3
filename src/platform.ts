@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import {
-    BridgeFinder,
-    BridgeNetInfo,
+    ProcessorFinder,
+    ProcessorNetInfo,
     AreaDefinition,
     ControlStationDefinition,
     DeviceDefinition,
@@ -9,7 +9,7 @@ import {
     LeapClient,
     OneDeviceStatus,
     Response,
-    SmartBridge,
+    Processor,
 } from 'lutron-leap';
 
 import { API, APIEvent, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from 'homebridge';
@@ -36,8 +36,8 @@ export interface GlobalOptions {
     logSSLKeyDangerous: boolean;
 }
 
-interface BridgeAuthEntry {
-    bridgeid: string;
+interface ProcessorAuthEntry {
+    processorID: string;
     ca: string;
     key: string;
     cert: string;
@@ -70,10 +70,10 @@ export class LutronRadioRA3Platform
     extends (EventEmitter as new () => TypedEmitter<PlatformEvents>)
     implements DynamicPlatformPlugin {
     private readonly accessories: Map<string, PlatformAccessory> = new Map();
-    private finder: BridgeFinder | null = null;
+    private finder: ProcessorFinder | null = null;
     private options: GlobalOptions;
-    private secrets: Map<string, BridgeAuthEntry>;
-    private bridgeMgr: Map<string, SmartBridge> = new Map();
+    private secrets: Map<string, ProcessorAuthEntry>;
+    private processorMgr: Map<string, Processor> = new Map();
 
     constructor(public readonly log: Logging, public readonly config: PlatformConfig, public readonly api: API) {
         super();
@@ -85,7 +85,7 @@ export class LutronRadioRA3Platform
         this.options = this.optionsFromConfig(config);
         this.secrets = this.secretsFromConfig(config);
         if (this.secrets.size === 0) {
-            log.warn('No bridge auth configured. Retiring.');
+            log.warn('No processor auth configured. Retiring.');
             return;
         }
 
@@ -103,8 +103,8 @@ export class LutronRadioRA3Platform
         api.on(APIEvent.DID_FINISH_LAUNCHING, () => {
             log.info('Finished launching; starting up automatic discovery');
 
-            this.finder = new BridgeFinder();
-            this.finder.on('discovered', this.handleBridgeDiscovery.bind(this));
+            this.finder = new ProcessorFinder();
+            this.finder.on('discovered', this.handleProcessorDiscovery.bind(this));
             this.finder.on('failed', (error) => {
                 log.error('Could not connect to discovered hub:', error);
             });
@@ -143,14 +143,14 @@ export class LutronRadioRA3Platform
         );
     }
 
-    secretsFromConfig(config: PlatformConfig): Map<string, BridgeAuthEntry> {
+    secretsFromConfig(config: PlatformConfig): Map<string, ProcessorAuthEntry> {
         const out = new Map();
-        for (const entry of config.secrets as Array<BridgeAuthEntry>) {
-            out.set(entry.bridgeid.toLowerCase(), {
+        for (const entry of config.secrets as Array<ProcessorAuthEntry>) {
+            out.set(entry.processorID.toLowerCase(), {
                 ca: entry.ca,
                 key: entry.key,
                 cert: entry.cert,
-                bridgeid: entry.bridgeid,
+                processorID: entry.processorID,
             });
         }
         return out;
@@ -162,91 +162,91 @@ export class LutronRadioRA3Platform
 
     // ----- CUSTOM METHODS
 
-    private async handleBridgeDiscovery(bridgeInfo: BridgeNetInfo) {
+    private async handleProcessorDiscovery(processorInfo: ProcessorNetInfo) {
         let replaceClient = false;
-        const bridgeID = bridgeInfo.bridgeid.toLowerCase();
+        const processorID = processorInfo.processorID.toLowerCase();
 
-        if (this.bridgeMgr.has(bridgeID)) {
-            // this is an existing bridge re-announcing itself, so we'll recycle the connection to it
-            if (this.bridgeMgr.get(bridgeID)!.bridgeReconfigInProgress === true){
-                this.log.info('Bridge', bridgeInfo.bridgeid, 'reconfiguration in progress, do nothing.');
+        if (this.processorMgr.has(processorID)) {
+            // this is an existing processor re-announcing itself, so we'll recycle the connection to it
+            if (this.processorMgr.get(processorID)!.processorReconfigInProgress === true){
+                this.log.info('Processor', processorInfo.processorID, 'reconfiguration in progress, do nothing.');
                 return;
             }
-            this.log.info('Bridge', bridgeInfo.bridgeid, 'already known, will skip setup.');
+            this.log.info('Processor', processorInfo.processorID, 'already known, will skip setup.');
             replaceClient = true;
         }
 
-        if (this.secrets.has(bridgeID)) {
-            const these = this.secrets.get(bridgeID)!;
-            this.log.debug('bridge', bridgeInfo.bridgeid, 'has secrets', JSON.stringify(these));
+        if (this.secrets.has(processorID)) {
+            const these = this.secrets.get(processorID)!;
+            this.log.debug('processor', processorInfo.processorID, 'has secrets', JSON.stringify(these));
 
             let logfile: fs.WriteStream | undefined = undefined;
             if (this.options.logSSLKeyDangerous) {
-                logfile = fs.createWriteStream(`/tmp/${bridgeInfo.bridgeid}-tlskey.log`, { flags: 'a' });
+                logfile = fs.createWriteStream(`/tmp/${processorInfo.processorID}-tlskey.log`, { flags: 'a' });
             }
 
-            const client = new LeapClient(bridgeInfo.ipAddr, LEAP_PORT, these.ca, these.key, these.cert, logfile);
+            const client = new LeapClient(processorInfo.ipAddress, LEAP_PORT, these.ca, these.key, these.cert, logfile);
 
             if (replaceClient) {
                 // when we close the client connection, it disconnects, which
                 // causes it to emit a disconnection event. this event will
-                // propagate to the bridge that owns it, which will emit its
+                // propagate to the processor that owns it, which will emit its
                 // own disconnect event, triggering re-subscriptions (at the
                 // LEAP layer) by buttons and occupancy sensors.
                 //
                 // I think there's a race here, in that the re-subscription
                 // will trigger the client reconnect, possibly before the
-                // client object in the bridge is replaced. As such, we need to
+                // client object in the processor is replaced. As such, we need to
                 // replace the client object with the new client *before* we
-                // tell the old client to disconnect. because the bridge
+                // tell the old client to disconnect. because the processor
                 // doesn't tie disconnect events to the client that emitted
-                // them (why would it?  bridges never have more than one
+                // them (why would it?  processors never have more than one
                 // connection), we should then be able to rely on the
                 // disconnect event machinery to set things back up for us.
                 // convenient!
 
                 // this should, then, look like this:
-                //  - store new client in bridge
+                //  - store new client in processor
                 //  - close old client
                 //  - old client emits disconnect
-                //  - bridge gets disconnect, emits disconnect
-                //  - devices ask bridge to re-subscribe
-                //  - bridge uses new client to re-subscribe
+                //  - processor gets disconnect, emits disconnect
+                //  - devices ask processor to re-subscribe
+                //  - processor uses new client to re-subscribe
                 //  - old client goes out of scope
-                this.log.info('Bridge', bridgeInfo.bridgeid, 'entering reconfiguration');
-                await this.bridgeMgr.get(bridgeID)!.reconfigureBridge(client);
-                this.log.info('Bridge', bridgeInfo.bridgeid, 'exit reconfiguration');
+                this.log.info('Processor', processorInfo.processorID, 'entering reconfiguration');
+                await this.processorMgr.get(processorID)!.reconfigureProcessor(client);
+                this.log.info('Processor', processorInfo.processorID, 'exit reconfiguration');
             } else {
-                const bridge = new SmartBridge(bridgeID, client);
+                const processor = new Processor(processorID, client);
 
                 // every pico and occupancy sensor needs to subscribe to
                 // 'disconnected', and that may be a lot of devices.
                 // see [#123](https://github.com/thenewwazoo/homebridge-lutron-caseta-leap/issues/123)
-                bridge.setMaxListeners(400);
+                processor.setMaxListeners(400);
 
-                this.bridgeMgr.set(bridge.bridgeID, bridge);
-                this.processAllDevices(bridge);
+                this.processorMgr.set(processor.processorID, processor);
+                this.processAllDevices(processor);
             }
         } else {
-            this.log.info('no credentials from bridge ID', bridgeInfo.bridgeid);
+            this.log.info('no credentials from processor ID', processorInfo.processorID);
         }
     }
 
-    private processAllDevices(bridge: SmartBridge) {
-        bridge.getAreas().then(async (areas: AreaDefinition[]) => {
+    private processAllDevices(processor: Processor) {
+        processor.getAreas().then(async (areas: AreaDefinition[]) => {
             for (const area of areas) {
                 if (!area.IsLeaf) {
                     continue;
                 }
-                bridge.getAreaControlStations(area).then(async (controlStations: ControlStationDefinition[]) => {
+                processor.getAreaControlStations(area).then(async (controlStations: ControlStationDefinition[]) => {
                     for (const controlStation of controlStations) {
                         if (controlStation.AssociatedGangedDevices === undefined) {
                             continue;
                         }
                         for (const gangedDevice of controlStation.AssociatedGangedDevices) {
-                            bridge.getDevice(gangedDevice.Device).then(async (device: DeviceDefinition) => {
+                            processor.getDevice(gangedDevice.Device).then(async (device: DeviceDefinition) => {
                                 if (device.AddressedState === 'Addressed') {
-                                    this.processDevice(bridge, device, area.Name + ' ' + device.Name);
+                                    this.processDevice(processor, device, area.Name + ' ' + device.Name);
                                 }
                             });
                         }
@@ -255,9 +255,9 @@ export class LutronRadioRA3Platform
             }
         });
 
-        // bridge.getDeviceInfo().then(async (devices: DeviceDefinition[]) => {
+        // processor.getDeviceInfo().then(async (devices: DeviceDefinition[]) => {
         //     const results: PromiseSettledResult<string>[] = await Promise.allSettled(
-        //         devices.map((device: DeviceDefinition) => this.processDevice(bridge, device)),
+        //         devices.map((device: DeviceDefinition) => this.processDevice(processor, device)),
         //     );
         //     for (const result of results) {
         //         switch (result.status) {
@@ -273,11 +273,11 @@ export class LutronRadioRA3Platform
         //     }
         // });
 
-        bridge.on('unsolicited', this.handleUnsolicitedMessage.bind(this));
+        processor.on('unsolicited', this.handleUnsolicitedMessage.bind(this));
     }
 
-    async processDevice(bridge: SmartBridge, d: DeviceDefinition, fullName: string): Promise<string> {
-        const uuid = this.api.hap.uuid.generate(d.SerialNumber.toString());
+    async processDevice(processor: Processor, device: DeviceDefinition, fullName: string): Promise<string> {
+        const uuid = this.api.hap.uuid.generate(device.SerialNumber.toString());
 
         let accessory: PlatformAccessory | undefined = this.accessories.get(uuid);
         let is_from_cache = true;
@@ -288,7 +288,7 @@ export class LutronRadioRA3Platform
             this.log.debug(`Device ${fullName} not found in accessory cache`);
         }
 
-        const result = await this.wireAccessory(accessory, bridge, d, fullName);
+        const result = await this.wireAccessory(accessory, processor, device, fullName);
         accessory.displayName = fullName;
         switch (result.kind) {
             case DeviceWireResultType.Error: {
@@ -318,17 +318,17 @@ export class LutronRadioRA3Platform
 
     async wireAccessory(
         accessory: PlatformAccessory,
-        bridge: SmartBridge,
+        processor: Processor,
         device: DeviceDefinition,
         fullName: string,
     ): Promise<DeviceWireResult> {
         accessory.context.device = device;
-        accessory.context.bridgeID = bridge.bridgeID;
+        accessory.context.processorID = processor.processorID;
 
         switch (device.DeviceType) {
             case 'SunnataHybridKeypad':
             case 'SunnataKeypad': {
-                const keypad = new SunnataKeypad(this, accessory, bridge, this.options);
+                const keypad = new SunnataKeypad(this, accessory, processor, this.options);
                 return keypad.initialize();
             }
 
@@ -344,7 +344,7 @@ export class LutronRadioRA3Platform
                 this.log.info(`Found a ${device.DeviceType} remote ${fullName}`);
 
                 // SIDE EFFECT: this constructor mutates the accessory object
-                const remote = new PicoRemote(this, accessory, bridge, this.options);
+                const remote = new PicoRemote(this, accessory, processor, this.options);
                 return remote.initialize();
             }
 
@@ -366,15 +366,15 @@ export class LutronRadioRA3Platform
         }
     }
 
-    handleUnsolicitedMessage(bridgeID: string, response: Response) {
-        this.log.debug('bridge', bridgeID, 'got unsolicited message', response);
+    handleUnsolicitedMessage(processorID: string, response: Response) {
+        this.log.debug('processor', processorID, 'got unsolicited message', response);
 
         if (response.CommuniqueType === 'UpdateResponse' && response.Header.Url === '/device/status/deviceheard') {
             const heardDevice = (response.Body! as OneDeviceStatus).DeviceStatus.DeviceHeard;
             this.log.info(`New ${heardDevice.DeviceType} s/n ${heardDevice.SerialNumber}. Triggering refresh in 30s.`);
-            const bridge = this.bridgeMgr.get(bridgeID);
-            if (bridge !== undefined) {
-                setTimeout(() => this.processAllDevices(bridge), 30000);
+            const processor = this.processorMgr.get(processorID);
+            if (processor !== undefined) {
+                setTimeout(() => this.processAllDevices(processor), 30000);
             }
         } else {
             this.emit('unsolicited', response);
