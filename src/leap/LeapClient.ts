@@ -109,11 +109,11 @@ export class LeapClient extends (EventEmitter as new () => TypedEmitter<LeapClie
         if (tag === undefined) {
             tag = uuidv4();
         }
-        if (this.inFlightRequests.has(tag)) {
-            const ifr = this.inFlightRequests.get(tag)!;
+        if (this.inFlightRequests.has(tag!)) {
+            const ifr = this.inFlightRequests.get(tag!)!;
             ifr.reject(new Error('Request clobbered due to tag re-use'));
             clearTimeout(ifr.timeout);
-            this.inFlightRequests.delete(tag);
+            this.inFlightRequests.delete(tag!);
         }
 
         let requestResolve: (response: Response) => void = () => {
@@ -132,7 +132,7 @@ export class LeapClient extends (EventEmitter as new () => TypedEmitter<LeapClie
         const message: Message = {
             CommuniqueType: communiqueType,
             Header: {
-                ClientTag: tag,
+                ClientTag: tag!,
                 Url: url,
             },
         };
