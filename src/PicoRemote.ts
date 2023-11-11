@@ -1,4 +1,4 @@
-import { Service, PlatformAccessory } from 'homebridge';
+ import { Service, PlatformAccessory } from 'homebridge';
 
 import { GlobalOptions, LutronRadioRA3Platform, DeviceWireResult, DeviceWireResultType } from './platform';
 import { ButtonTracker } from './ButtonTracker';
@@ -104,9 +104,11 @@ export class PicoRemote {
         private readonly accessory: PlatformAccessory,
         private readonly processor: Processor,
         private readonly options: GlobalOptions,
-    ) {}
+    ) {
+        
+    }
 
-    public async initialize(): Promise<DeviceWireResult> {
+    async initialize(): Promise<DeviceWireResult> {
         const fullName = this.accessory.context.device.FullyQualifiedName.join(' ');
 
         this.accessory
@@ -118,10 +120,10 @@ export class PicoRemote {
                 this.accessory.context.device.SerialNumber.toString(),
             );
 
-        const label_svc =
+        const labelService =
             this.accessory.getService(this.platform.api.hap.Service.ServiceLabel) ||
             this.accessory.addService(this.platform.api.hap.Service.ServiceLabel);
-        label_svc.setCharacteristic(
+        labelService.setCharacteristic(
             this.platform.api.hap.Characteristic.ServiceLabelNamespace,
             this.platform.api.hap.Characteristic.ServiceLabelNamespace.ARABIC_NUMERALS, // ha ha
         );
@@ -196,7 +198,7 @@ export class PicoRemote {
                     button.Name,
                     alias.label,
                 );
-            service.addLinkedService(label_svc);
+            service.addLinkedService(labelService);
 
             service.setCharacteristic(this.platform.api.hap.Characteristic.Name, alias.label);
             service.setCharacteristic(this.platform.api.hap.Characteristic.ServiceLabelIndex, alias.index);

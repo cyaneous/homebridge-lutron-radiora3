@@ -1,15 +1,15 @@
 import { EventEmitter } from 'events';
 import {
+    LEAP_PORT,
+    LeapClient,
     ProcessorFinder,
     ProcessorNetInfo,
+    Processor,
     AreaDefinition,
     ControlStationDefinition,
     DeviceDefinition,
-    LEAP_PORT,
-    LeapClient,
     OneDeviceStatus,
     Response,
-    Processor,
 } from './leap';
 
 import { API, APIEvent, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from 'homebridge';
@@ -20,10 +20,6 @@ import { PLUGIN_NAME, PLATFORM_NAME } from './settings';
 import { SunnataKeypad } from './SunnataKeypad';
 import { PicoRemote } from './PicoRemote';
 
-import fs from 'fs';
-import v8 from 'v8';
-import process from 'process';
-
 type PlatformEvents = {
     unsolicited: (response: Response) => void;
 };
@@ -33,7 +29,6 @@ export interface GlobalOptions {
     filterPico: boolean;
     clickSpeedLong: 'quick' | 'default' | 'relaxed' | 'disabled';
     clickSpeedDouble: 'quick' | 'default' | 'relaxed' | 'disabled';
-    logSSLKeyDangerous: boolean;
 }
 
 interface ProcessorAuthEntry {
@@ -80,8 +75,6 @@ export class LutronRadioRA3Platform
 
         log.info('Lutron RadioRA 3 starting up...');
 
-        process.on('warning', (e) => this.log.warn(`Got ${e.name} process warning: ${e.message}:\n${e.stack}`));
-
         this.options = this.optionsFromConfig(config);
         this.secrets = this.secretsFromConfig(config);
         if (this.secrets.size === 0) {
@@ -111,22 +104,6 @@ export class LutronRadioRA3Platform
             this.finder.beginSearching();
         });
 
-        process.on('SIGUSR2', () => {
-            const fileName = `/tmp/lutron.${Date.now()}.heapsnapshot`;
-            const usage = process.memoryUsage();
-            this.log.warn(`Current memory usage:
-                          rss=${usage.rss},
-                          heapTotal=${usage.heapTotal},
-                          heapUsed=${usage.heapUsed},
-                          external=${usage.external},
-                          arrayBuffers=${usage.arrayBuffers}`);
-            this.log.warn(`Got request to dump heap. Dumping to ${fileName}`);
-            const snapshotStream = v8.getHeapSnapshot();
-            const fileStream = fs.createWriteStream(fileName);
-            snapshotStream.pipe(fileStream);
-            this.log.info(`Heap dump to ${fileName} finished.`);
-        });
-
         log.info('LutronCasetaLeap plugin finished early initialization');
     }
 
@@ -137,7 +114,6 @@ export class LutronRadioRA3Platform
                 filterBlinds: false,
                 clickSpeedDouble: 'default',
                 clickSpeedLong: 'default',
-                logSSLKeyDangerous: false,
             },
             config.options,
         );
@@ -147,10 +123,10 @@ export class LutronRadioRA3Platform
         const out = new Map();
         for (const entry of config.secrets as Array<ProcessorAuthEntry>) {
             out.set(entry.processorID.toLowerCase(), {
+                processorID: entry.processorID,
                 ca: entry.ca,
                 key: entry.key,
                 cert: entry.cert,
-                processorID: entry.processorID,
             });
         }
         return out;
@@ -160,8 +136,6 @@ export class LutronRadioRA3Platform
         this.accessories.set(accessory.UUID, accessory);
     }
 
-    // ----- CUSTOM METHODS
-
     private async handleProcessorDiscovery(processorInfo: ProcessorNetInfo) {
         let replaceClient = false;
         const processorID = processorInfo.processorID.toLowerCase();
@@ -169,7 +143,7 @@ export class LutronRadioRA3Platform
         if (this.processorMgr.has(processorID)) {
             // this is an existing processor re-announcing itself, so we'll recycle the connection to it
             if (this.processorMgr.get(processorID)!.processorReconfigInProgress === true){
-                this.log.info('Processor', processorInfo.processorID, 'reconfiguration in progress, do nothing.');
+                this.log.info('Processor', processorInfo.processorID, 'reconfiguration in progress.');
                 return;
             }
             this.log.info('Processor', processorInfo.processorID, 'already known, will skip setup.');
@@ -180,12 +154,7 @@ export class LutronRadioRA3Platform
             const these = this.secrets.get(processorID)!;
             this.log.debug('processor', processorInfo.processorID, 'has secrets', JSON.stringify(these));
 
-            let logfile: fs.WriteStream | undefined = undefined;
-            if (this.options.logSSLKeyDangerous) {
-                logfile = fs.createWriteStream(`/tmp/${processorInfo.processorID}-tlskey.log`, { flags: 'a' });
-            }
-
-            const client = new LeapClient(processorInfo.ipAddress, LEAP_PORT, these.ca, these.key, these.cert, logfile);
+            const client = new LeapClient(processorInfo.ipAddress, LEAP_PORT, these.ca, these.key, these.cert);
 
             if (replaceClient) {
                 // when we close the client connection, it disconnects, which
@@ -225,14 +194,16 @@ export class LutronRadioRA3Platform
                 processor.setMaxListeners(400);
 
                 this.processorMgr.set(processor.processorID, processor);
-                this.processAllDevices(processor);
+                this.discoverDevices(processor);
             }
         } else {
             this.log.info('no credentials from processor ID', processorInfo.processorID);
         }
     }
 
-    private processAllDevices(processor: Processor) {
+    private discoverDevices(processor: Processor) {
+        this.log.debug('Starting device discovery for processor', processor.processorID);
+
         processor.getAreas().then(async (areas: AreaDefinition[]) => {
             for (const area of areas) {
                 if (!area.IsLeaf) {
@@ -255,24 +226,6 @@ export class LutronRadioRA3Platform
             }
         });
 
-        // processor.getDeviceInfo().then(async (devices: DeviceDefinition[]) => {
-        //     const results: PromiseSettledResult<string>[] = await Promise.allSettled(
-        //         devices.map((device: DeviceDefinition) => this.processDevice(processor, device)),
-        //     );
-        //     for (const result of results) {
-        //         switch (result.status) {
-        //             case 'fulfilled': {
-        //                 this.log.info(`Device setup finished: ${result.value}`);
-        //                 break;
-        //             }
-        //             case 'rejected': {
-        //                 this.log.error(`Failed to process device: ${result.reason}`);
-        //                 break;
-        //             }
-        //         }
-        //     }
-        // });
-
         processor.on('unsolicited', this.handleUnsolicitedMessage.bind(this));
     }
 
@@ -280,9 +233,9 @@ export class LutronRadioRA3Platform
         const uuid = this.api.hap.uuid.generate(device.SerialNumber.toString());
 
         let accessory: PlatformAccessory | undefined = this.accessories.get(uuid);
-        let is_from_cache = true;
+        let isFromCache = true;
         if (accessory === undefined) {
-            is_from_cache = false;
+            isFromCache = false;
             // new device, create an accessory
             accessory = new this.api.platformAccessory(fullName, uuid);
             this.log.debug(`Device ${fullName} not found in accessory cache`);
@@ -292,21 +245,21 @@ export class LutronRadioRA3Platform
         accessory.displayName = fullName;
         switch (result.kind) {
             case DeviceWireResultType.Error: {
-                if (is_from_cache) {
+                if (isFromCache) {
                     this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
                     this.log.debug(`un-registered cached device ${fullName} due to an error: ${result.reason}`);
                 }
                 return Promise.reject(new Error(`Failed to wire device ${fullName}: ${result.reason}`));
             }
             case DeviceWireResultType.Skipped: {
-                if (is_from_cache) {
+                if (isFromCache) {
                     this.log.debug(`un-registered cached device ${fullName} because it was skipped`);
                     this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
                 }
                 return Promise.resolve(`Skipped setting up device: ${result.reason}`);
             }
             case DeviceWireResultType.Success: {
-                if (!is_from_cache) {
+                if (!isFromCache) {
                     this.accessories.set(accessory.UUID, accessory);
                     this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
                     this.log.debug(`registered new device ${fullName} because it was new`);
@@ -375,7 +328,7 @@ export class LutronRadioRA3Platform
             this.log.info(`New ${heardDevice.DeviceType} s/n ${heardDevice.SerialNumber}. Triggering refresh in 30s.`);
             const processor = this.processorMgr.get(processorID);
             if (processor !== undefined) {
-                setTimeout(() => this.processAllDevices(processor), 30000);
+                setTimeout(() => this.discoverDevices(processor), 30000);
             }
         } else {
             this.emit('unsolicited', response);

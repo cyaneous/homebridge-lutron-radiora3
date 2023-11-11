@@ -32,7 +32,6 @@ export type MessageBodyType =
     | 'MultipleZoneStatus'
     | 'OnePingResponse'
     | 'OneButtonGroupDefinition'
-    | 'OneButtonGroupExpandedDefinition'
     | 'MultipleButtonGroupDefinition'
     | 'MultipleButtonGroupExpandedDefinition'
     | 'OneButtonDefinition'
@@ -141,10 +140,6 @@ export class MultipleButtonGroupDefinition {
     ButtonGroups!: ButtonGroupDefinition[];
 }
 
-export class OneButtonGroupExpandedDefinition {
-    ButtonGroupsExpanded!: ButtonGroupExpandedDefinition;
-}
-
 export class MultipleButtonGroupExpandedDefinition {
     ButtonGroupsExpanded!: ButtonGroupExpandedDefinition[];
 }
@@ -225,6 +220,7 @@ export type BodyType =
     | OnePingResponse
     | OneButtonGroupDefinition
     | MultipleButtonGroupDefinition
+    | MultipleButtonGroupExpandedDefinition
     | OneButtonDefinition
     | OneButtonStatusEvent
     | MultipleOccupancyGroupStatus
