@@ -105,7 +105,7 @@ export class PicoRemote {
         private readonly processor: Processor,
         private readonly options: GlobalOptions,
     ) {
-        
+
     }
 
     async initialize(): Promise<DeviceWireResult> {
@@ -128,117 +128,97 @@ export class PicoRemote {
             this.platform.api.hap.Characteristic.ServiceLabelNamespace.ARABIC_NUMERALS, // ha ha
         );
 
-        let bgs;
+        let buttonGroups;
         try {
-            bgs = await this.processor.getDeviceButtonGroups(this.accessory.context.device);
+            buttonGroups = await this.processor.getDeviceButtonGroupsExpanded(this.accessory.context.device);
         } catch (e) {
-            this.platform.log.error('Failed to get button group(s) belonging to', fullName, e);
+            this.platform.log.error('Failed to get button groups belonging to', fullName, e);
             return {
                 kind: DeviceWireResultType.Error,
-                reason: `Failed to get button group(s) belonging to ${fullName}: ${e}`,
+                reason: `Failed to get button groups belonging to ${fullName}: ${e}`,
             };
         }
 
-        // if there are any buttongroups that are already associated in the
-        // lutron app, and we've been told to skip them, return early.
-        if (bgs.some((bg) => bg.AffectedZones !== undefined) && this.options.filterPico) {
-            return {
-                kind: DeviceWireResultType.Skipped,
-                reason: 'Associated with a device outside HomeKit',
-            };
-        }
-
-        bgs.forEach((bg) => {
-            if (bg instanceof ExceptionDetail) {
+        buttonGroups.forEach((buttonGroup) => {
+            if (buttonGroup instanceof ExceptionDetail) {
                 return new Error('Device has been removed');
             }
         });
 
-        let buttons: ButtonDefinition[] = [];
-        for (const bg of bgs) {
-            try {
-                buttons = buttons.concat(await this.processor.getButtonsFromGroup(bg));
-            } catch (e) {
-                this.platform.log.error('Failed to get buttons from button group', bg.href);
-                return {
-                    kind: DeviceWireResultType.Error,
-                    reason: `Failed to get buttons from button group ${bg.href}: ${e}`,
-                };
-            }
-        }
+        for (const buttonGroup of buttonGroups) {
+            for (const button of buttonGroup.Buttons) {
+                const dentry = BUTTON_MAP.get(this.accessory.context.device.DeviceType);
+                if (dentry === undefined) {
+                    return {
+                        kind: DeviceWireResultType.Error,
+                        reason: `Could not find ${this.accessory.context.device.DeviceType} in button map`,
+                    };
+                }
+                const alias = dentry.get(button.ButtonNumber);
+                if (alias === undefined) {
+                    return {
+                        kind: DeviceWireResultType.Error,
+                        reason: `Could not find button ${button.ButtonNumber} in ${this.accessory.context.device.DeviceType} map entry`,
+                    };
+                }
 
-        for (const button of buttons) {
-            const dentry = BUTTON_MAP.get(this.accessory.context.device.DeviceType);
-            if (dentry === undefined) {
-                return {
-                    kind: DeviceWireResultType.Error,
-                    reason: `Could not find ${this.accessory.context.device.DeviceType} in button map`,
-                };
-            }
-            const alias = dentry.get(button.ButtonNumber);
-            if (alias === undefined) {
-                return {
-                    kind: DeviceWireResultType.Error,
-                    reason: `Could not find button ${button.ButtonNumber} in ${this.accessory.context.device.DeviceType} map entry`,
-                };
-            }
-
-            this.platform.log.debug(
-                `setting up ${button.href} named ${button.Name} numbered ${button.ButtonNumber} as ${inspect(
-                    alias,
-                    true,
-                    null,
-                )}`,
-            );
-
-            const service =
-                this.accessory.getServiceById(this.platform.api.hap.Service.StatelessProgrammableSwitch, alias.label) ||
-                this.accessory.addService(
-                    this.platform.api.hap.Service.StatelessProgrammableSwitch,
-                    button.Name,
-                    alias.label,
+                this.platform.log.debug(
+                    `setting up ${button.href} named ${button.Name} numbered ${button.ButtonNumber} as ${inspect(
+                        alias,
+                        true,
+                        null,
+                    )}`,
                 );
-            service.addLinkedService(labelService);
 
-            service.setCharacteristic(this.platform.api.hap.Characteristic.Name, alias.label);
-            service.setCharacteristic(this.platform.api.hap.Characteristic.ServiceLabelIndex, alias.index);
+                const service =
+                    this.accessory.getServiceById(this.platform.api.hap.Service.StatelessProgrammableSwitch, alias.label) ||
+                    this.accessory.addService(
+                        this.platform.api.hap.Service.StatelessProgrammableSwitch,
+                        button.Name,
+                        alias.label,
+                    );
+                service.addLinkedService(labelService);
 
-            service
-                .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
-                .setProps({ maxValue: 2 });
+                service.setCharacteristic(this.platform.api.hap.Characteristic.Name, alias.label);
+                service.setCharacteristic(this.platform.api.hap.Characteristic.ServiceLabelIndex, alias.index);
 
-            this.services.set(button.href, service);
-            this.trackers.set(
-                button.href,
-                new ButtonTracker(
-                    () =>
-                        service
-                            .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
-                            .updateValue(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS),
-                    () =>
-                        service
-                            .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
-                            .updateValue(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS),
-                    () =>
-                        service
-                            .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
-                            .updateValue(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent.LONG_PRESS),
-                    this.platform.log,
+                service
+                    .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
+                    .setProps({ maxValue: 2 });
+
+                this.services.set(button.href, service);
+                this.trackers.set(
                     button.href,
-                    this.options.clickSpeedDouble,
-                    this.options.clickSpeedLong,
-                    alias.isUpDown,
-                ),
-            );
+                    new ButtonTracker(
+                        () =>
+                            service
+                                .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
+                                .updateValue(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS),
+                        () =>
+                            service
+                                .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
+                                .updateValue(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS),
+                        () =>
+                            service
+                                .getCharacteristic(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent)
+                                .updateValue(this.platform.api.hap.Characteristic.ProgrammableSwitchEvent.LONG_PRESS),
+                        this.platform.log,
+                        button.href,
+                        this.options.clickSpeedDouble,
+                        this.options.clickSpeedLong,
+                        alias.isUpDown,
+                    ),
+                );
 
-            this.platform.log.debug(`subscribing to ${button.href} events`);
-            this.processor.subscribeToButton(button, this.handleEvent.bind(this));
-
-            // when the connection is lost, so are subscriptions.
-            this.processor.on('disconnected', () => {
-                this.platform.log.debug(`re-subscribing to ${button.href} events after connection loss`);
+                this.platform.log.debug(`subscribing to ${button.href} events`);
                 this.processor.subscribeToButton(button, this.handleEvent.bind(this));
-            });
+
+                // when the connection is lost, so are subscriptions.
+                this.processor.on('disconnected', () => {
+                    this.platform.log.debug(`re-subscribing to ${button.href} events after connection loss`);
+                    this.processor.subscribeToButton(button, this.handleEvent.bind(this));
+                });
+            }
         }
 
         this.platform.on('unsolicited', this.handleUnsolicited.bind(this));

@@ -199,24 +199,24 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
         throw new Error('got bad response to getDeviceButtonGroupsExpanded request');
     }
 
-    public async getDeviceButtonGroups(device: DeviceDefinition): Promise<ButtonGroupDefinition[]> {
-        logDebug('getting device button groups:', device.href);
-        const raw = await this.client.request('ReadRequest', device.href + '/buttongroup');
-        if ((raw.Body! as MultipleButtonGroupDefinition).ButtonGroups) {
-            return (raw.Body! as MultipleButtonGroupDefinition).ButtonGroups;
-        }
-        throw new Error('got bad response to getDeviceButtonGroups request');
-    }
+    // public async getDeviceButtonGroups(device: DeviceDefinition): Promise<ButtonGroupDefinition[]> {
+    //     logDebug('getting device button groups:', device.href);
+    //     const raw = await this.client.request('ReadRequest', device.href + '/buttongroup');
+    //     if ((raw.Body! as MultipleButtonGroupDefinition).ButtonGroups) {
+    //         return (raw.Body! as MultipleButtonGroupDefinition).ButtonGroups;
+    //     }
+    //     throw new Error('got bad response to getDeviceButtonGroups request');
+    // }
 
-    public async getButtonsFromGroup(bgroup: ButtonGroupDefinition): Promise<ButtonDefinition[]> {
-        return Promise.all(
-            bgroup.Buttons.map((button: Href) =>
-                this.client
-                    .request('ReadRequest', button.href)
-                    .then((resp: Response) => (resp.Body! as OneButtonDefinition).Button),
-            ),
-        );
-    }
+    // public async getButtonsFromGroup(bgroup: ButtonGroupDefinition): Promise<ButtonDefinition[]> {
+    //     return Promise.all(
+    //         bgroup.Buttons.map((button: Href) =>
+    //             this.client
+    //                 .request('ReadRequest', button.href)
+    //                 .then((resp: Response) => (resp.Body! as OneButtonDefinition).Button),
+    //         ),
+    //     );
+    // }
 
     public async processCommand(device: DeviceDefinition, command: object): Promise<void> {
         logDebug('processing command:', device.href, command);
