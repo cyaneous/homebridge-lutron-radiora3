@@ -201,30 +201,49 @@ export class LutronRadioRA3Platform
         }
     }
 
-    private discoverDevices(processor: Processor) {
+    private async discoverDevices(processor: Processor) {
         this.log.debug('Starting device discovery for processor', processor.processorID);
 
-        processor.getAreas().then(async (areas: AreaDefinition[]) => {
-            for (const area of areas) {
-                if (!area.IsLeaf) {
+        let areas: AreaDefinition[];
+        try {
+            areas = await processor.getAreas();
+        } catch {
+            this.log.error('Failed to retrieve areas for processor', processor.processorID);
+            return;
+        }
+
+        for (const area of areas) {
+            if (!area.IsLeaf) {
+                continue;
+            }
+
+            let controlStations: ControlStationDefinition[];
+            try {
+                controlStations = await processor.getAreaControlStations(area);
+            } catch {
+                this.log.error('Failed to retrieve control stations for area', area.href); 
+                continue;
+            }
+
+            for (const controlStation of controlStations) {
+                if (controlStation.AssociatedGangedDevices === undefined) {
                     continue;
                 }
-                processor.getAreaControlStations(area).then(async (controlStations: ControlStationDefinition[]) => {
-                    for (const controlStation of controlStations) {
-                        if (controlStation.AssociatedGangedDevices === undefined) {
-                            continue;
-                        }
-                        for (const gangedDevice of controlStation.AssociatedGangedDevices) {
-                            processor.getDevice(gangedDevice.Device).then(async (device: DeviceDefinition) => {
-                                if (device.AddressedState === 'Addressed') {
-                                    this.processDevice(processor, area, controlStation, device);
-                                }
-                            });
-                        }
+
+                for (const gangedDevice of controlStation.AssociatedGangedDevices) {
+                    let device: DeviceDefinition;
+                    try {
+                        device = await processor.getDevice(gangedDevice.Device);
+                    } catch {
+                        this.log.error('Failed to retrieve ganged device', gangedDevice.Device.href); 
+                        continue;
                     }
-                });
+                    if (device.AddressedState === 'Addressed') {
+                        this.processDevice(processor, area, controlStation, device);
+                    }
+                }
             }
-        });
+        }
 
         processor.on('unsolicited', this.handleUnsolicitedMessage.bind(this));
     }
@@ -235,8 +254,8 @@ export class LutronRadioRA3Platform
         controlStation: ControlStationDefinition,
         device: DeviceDefinition,
     ): Promise<string> {
-        const fullyQualifiedName = area.Name + ' ' + device.Name;
         const uuid = this.api.hap.uuid.generate(device.SerialNumber.toString());
+        const fullyQualifiedName = Array.from(new Set([area.Name, controlStation.Name, device.Name])).join(' ');
 
         let accessory: PlatformAccessory | undefined = this.accessories.get(uuid);
         let isFromCache = true;
