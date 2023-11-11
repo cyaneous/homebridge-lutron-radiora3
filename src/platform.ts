@@ -217,7 +217,7 @@ export class LutronRadioRA3Platform
                         for (const gangedDevice of controlStation.AssociatedGangedDevices) {
                             processor.getDevice(gangedDevice.Device).then(async (device: DeviceDefinition) => {
                                 if (device.AddressedState === 'Addressed') {
-                                    this.processDevice(processor, device, area.Name + ' ' + device.Name);
+                                    this.processDevice(processor, area, controlStation, device);
                                 }
                             });
                         }
@@ -229,7 +229,13 @@ export class LutronRadioRA3Platform
         processor.on('unsolicited', this.handleUnsolicitedMessage.bind(this));
     }
 
-    async processDevice(processor: Processor, device: DeviceDefinition, fullName: string): Promise<string> {
+    async processDevice(
+        processor: Processor,
+        area: AreaDefinition,
+        controlStation: ControlStationDefinition,
+        device: DeviceDefinition,
+    ): Promise<string> {
+        const fullyQualifiedName = area.Name + ' ' + device.Name;
         const uuid = this.api.hap.uuid.generate(device.SerialNumber.toString());
 
         let accessory: PlatformAccessory | undefined = this.accessories.get(uuid);
@@ -237,23 +243,23 @@ export class LutronRadioRA3Platform
         if (accessory === undefined) {
             isFromCache = false;
             // new device, create an accessory
-            accessory = new this.api.platformAccessory(fullName, uuid);
-            this.log.debug(`Device ${fullName} not found in accessory cache`);
+            accessory = new this.api.platformAccessory(fullyQualifiedName, uuid);
+            this.log.debug(`Device ${fullyQualifiedName} not found in accessory cache`);
         }
 
-        const result = await this.wireAccessory(accessory, processor, device, fullName);
-        accessory.displayName = fullName;
+        const result = await this.wireAccessory(accessory, processor, area, controlStation, device, fullyQualifiedName);
+        accessory.displayName = fullyQualifiedName;
         switch (result.kind) {
             case DeviceWireResultType.Error: {
                 if (isFromCache) {
                     this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-                    this.log.debug(`un-registered cached device ${fullName} due to an error: ${result.reason}`);
+                    this.log.debug(`un-registered cached device ${fullyQualifiedName} due to an error: ${result.reason}`);
                 }
-                return Promise.reject(new Error(`Failed to wire device ${fullName}: ${result.reason}`));
+                return Promise.reject(new Error(`Failed to wire device ${fullyQualifiedName}: ${result.reason}`));
             }
             case DeviceWireResultType.Skipped: {
                 if (isFromCache) {
-                    this.log.debug(`un-registered cached device ${fullName} because it was skipped`);
+                    this.log.debug(`un-registered cached device ${fullyQualifiedName} because it was skipped`);
                     this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
                 }
                 return Promise.resolve(`Skipped setting up device: ${result.reason}`);
@@ -262,9 +268,9 @@ export class LutronRadioRA3Platform
                 if (!isFromCache) {
                     this.accessories.set(accessory.UUID, accessory);
                     this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-                    this.log.debug(`registered new device ${fullName} because it was new`);
+                    this.log.debug(`registered new device ${fullyQualifiedName} because it was new`);
                 }
-                return Promise.resolve(`Set up device ${fullName}`);
+                return Promise.resolve(`Set up device ${fullyQualifiedName}`);
             }
         }
     }
@@ -272,8 +278,10 @@ export class LutronRadioRA3Platform
     async wireAccessory(
         accessory: PlatformAccessory,
         processor: Processor,
+        area: AreaDefinition,
+        controlStation: ControlStationDefinition,
         device: DeviceDefinition,
-        fullName: string,
+        fullyQualifiedName: string,
     ): Promise<DeviceWireResult> {
         accessory.context.device = device;
         accessory.context.processorID = processor.processorID;
@@ -281,7 +289,7 @@ export class LutronRadioRA3Platform
         switch (device.DeviceType) {
             case 'SunnataKeypad':
             case 'SunnataHybridKeypad': {
-                this.log.info(`Found a ${device.DeviceType}: ${fullName}`);
+                this.log.info(`Found a ${device.DeviceType}: ${fullyQualifiedName}`);
                 const keypad = new SunnataKeypad(this, accessory, processor, this.options);
                 return keypad.initialize();
             }
@@ -295,7 +303,7 @@ export class LutronRadioRA3Platform
             case 'Pico4ButtonScene':
             case 'Pico4ButtonZone':
             case 'PaddleSwitchPico': {
-                this.log.info(`Found a ${device.DeviceType} remote ${fullName}`);
+                this.log.info(`Found a ${device.DeviceType} remote ${fullyQualifiedName}`);
 
                 // SIDE EFFECT: this constructor mutates the accessory object
                 const remote = new PicoRemote(this, accessory, processor, this.options);
