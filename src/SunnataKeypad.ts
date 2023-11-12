@@ -121,9 +121,8 @@ export class SunnataKeypad {
 
     handleEvent(response: Response): void {
         const evt = (response.Body! as OneButtonStatusEvent).ButtonStatus;
-        const fullName = this.accessory.context.device.Name;
         this.platform.log.info(
-            `Button ${evt.Button.href} on keypad ${fullName} got action ${evt.ButtonEvent.EventType}`,
+            `Button ${evt.Button.href} on keypad ${this.accessory.displayName} got action ${evt.ButtonEvent.EventType}`,
         );
         this.trackers.get(evt.Button.href)!.update(evt.ButtonEvent.EventType);
     }
