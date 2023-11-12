@@ -6,6 +6,7 @@ import { LeapClient } from './LeapClient';
 import { Response, ResponseWithTag } from './Messages';
 import {
     BodyType,
+    ProjectDefinition,
     ButtonDefinition,
     ButtonGroupExpandedDefinition,
     AreaDefinition,
@@ -17,6 +18,7 @@ import {
     MultipleButtonGroupExpandedDefinition,
     MultipleControlStationDefinition,
     MultipleDeviceDefinition,
+    OneProjectDefinition,
     OneButtonGroupDefinition,
     OneDeviceDefinition,
     OneZoneStatus,
@@ -144,6 +146,15 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
         return raw.Body!;
     }
 
+    public async getProject(): Promise<ProjectDefinition> {
+        logDebug('getting project');
+        const raw = await this.client.request('ReadRequest', '/project');
+        if ((raw.Body! as OneProjectDefinition).Project) {
+            return (raw.Body! as OneProjectDefinition).Project;
+        }
+        throw new Error('Got bad response to getProject() request');
+    }
+
     public async getProcessorInfo(): Promise<ProcessorInfo> {
         logDebug('getting processor information');
         const raw = await this.client.request('ReadRequest', '/device?where=IsThisDevice:true');
@@ -157,7 +168,7 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
                 serialNumber: device.SerialNumber,
             };
         }
-        throw new Error('Got bad response to processor info request');
+        throw new Error('Got bad response to getProcessorInfo() request');
     }
 
     public async getAreas(): Promise<AreaDefinition[]> {
@@ -166,7 +177,7 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
         if ((raw.Body! as MultipleAreaDefinition).Areas) {
             return (raw.Body! as MultipleAreaDefinition).Areas;
         }
-        throw new Error('got bad response to getAreas request');
+        throw new Error('got bad response to getAreas() request');
     }
 
     public async getAreaControlStations(area: AreaDefinition): Promise<ControlStationDefinition[]> {
@@ -175,7 +186,7 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
         if ((raw.Body! as MultipleControlStationDefinition).ControlStations !== undefined) {
             return (raw.Body! as MultipleControlStationDefinition).ControlStations;
         }
-        throw new Error('got bad response to getAreaControlStations request');
+        throw new Error('got bad response to getAreaControlStations() request');
     }
 
     public async getDevice(device: DeviceDefinition): Promise<DeviceDefinition> {
@@ -184,7 +195,7 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
         if ((raw.Body! as OneDeviceDefinition).Device) {
             return (raw.Body! as OneDeviceDefinition).Device;
         }
-        throw new Error('got bad response to getDevice request');
+        throw new Error('got bad response to getDevice() request');
     }
 
     public async getDeviceButtonGroupsExpanded(device: DeviceDefinition): Promise<ButtonGroupExpandedDefinition[]> {
@@ -193,7 +204,7 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
         if ((raw.Body! as MultipleButtonGroupExpandedDefinition).ButtonGroupsExpanded) {
             return (raw.Body! as MultipleButtonGroupExpandedDefinition).ButtonGroupsExpanded;
         }
-        throw new Error('got bad response to getDeviceButtonGroupsExpanded request');
+        throw new Error('got bad response to getDeviceButtonGroupsExpanded() request');
     }
 
     public async processCommand(device: DeviceDefinition, command: object): Promise<void> {

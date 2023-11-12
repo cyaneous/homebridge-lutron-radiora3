@@ -5,6 +5,7 @@ import {
     ProcessorFinder,
     ProcessorNetInfo,
     Processor,
+    ProjectDefinition,
     AreaDefinition,
     ControlStationDefinition,
     DeviceDefinition,
@@ -68,7 +69,7 @@ export class LutronRadioRA3Platform
     private finder: ProcessorFinder | null = null;
     private options: GlobalOptions;
     private secrets: Map<string, ProcessorAuthEntry>;
-    private processorMgr: Map<string, Processor> = new Map();
+    private processorManager: Map<string, Processor> = new Map();
 
     constructor(public readonly log: Logging, public readonly config: PlatformConfig, public readonly api: API) {
         super();
@@ -140,9 +141,9 @@ export class LutronRadioRA3Platform
         let replaceClient = false;
         const processorID = processorInfo.processorID.toLowerCase();
 
-        if (this.processorMgr.has(processorID)) {
+        if (this.processorManager.has(processorID)) {
             // this is an existing processor re-announcing itself, so we'll recycle the connection to it
-            if (this.processorMgr.get(processorID)!.processorReconfigInProgress === true){
+            if (this.processorManager.get(processorID)!.processorReconfigInProgress === true){
                 this.log.info('Processor', processorInfo.processorID, 'reconfiguration in progress.');
                 return;
             }
@@ -183,7 +184,7 @@ export class LutronRadioRA3Platform
                 //  - processor uses new client to re-subscribe
                 //  - old client goes out of scope
                 this.log.info('Processor', processorInfo.processorID, 'entering reconfiguration');
-                await this.processorMgr.get(processorID)!.reconfigureProcessor(client);
+                await this.processorManager.get(processorID)!.reconfigureProcessor(client);
                 this.log.info('Processor', processorInfo.processorID, 'exit reconfiguration');
             } else {
                 const processor = new Processor(processorID, client);
@@ -193,7 +194,7 @@ export class LutronRadioRA3Platform
                 // see [#123](https://github.com/thenewwazoo/homebridge-lutron-caseta-leap/issues/123)
                 processor.setMaxListeners(400);
 
-                this.processorMgr.set(processor.processorID, processor);
+                this.processorManager.set(processor.processorID, processor);
                 this.discoverDevices(processor);
             }
         } else {
@@ -202,6 +203,19 @@ export class LutronRadioRA3Platform
     }
 
     private async discoverDevices(processor: Processor) {
+        let project: ProjectDefinition
+        try {
+            project = await processor.getProject();
+        } catch {
+            this.log.error('Failed to read the project, aborting discovery for processor', processor.processorID);
+            return;
+        }
+
+        if (project.ProductType !== 'Lutron RadioRA 3 Project') {
+            this.log.error('This is not a RadioRA 3 project, aborting discovery for processor', processor.processorID);
+            return;
+        }
+
         this.log.debug('Starting device discovery for processor', processor.processorID);
 
         let areas: AreaDefinition[];
@@ -353,7 +367,7 @@ export class LutronRadioRA3Platform
         if (response.CommuniqueType === 'UpdateResponse' && response.Header.Url === '/device/status/deviceheard') {
             const heardDevice = (response.Body! as OneDeviceStatus).DeviceStatus.DeviceHeard;
             this.log.info(`New ${heardDevice.DeviceType} s/n ${heardDevice.SerialNumber}. Triggering refresh in 30s.`);
-            const processor = this.processorMgr.get(processorID);
+            const processor = this.processorManager.get(processorID);
             if (processor !== undefined) {
                 setTimeout(() => this.discoverDevices(processor), 30000);
             }
