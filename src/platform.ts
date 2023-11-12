@@ -337,8 +337,6 @@ export class LutronRadioRA3Platform
             case 'Pico4ButtonZone':
             case 'PaddleSwitchPico': {
                 this.log.info(`Found a ${device.DeviceType} remote ${fullyQualifiedName}`);
-
-                // SIDE EFFECT: this constructor mutates the accessory object
                 const remote = new PicoRemote(this, accessory, processor, this.options);
                 return remote.initialize();
             }
