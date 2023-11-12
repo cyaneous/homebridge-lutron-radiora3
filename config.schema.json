@@ -41,7 +41,7 @@
             "key": { "type": "string" },
             "cert": { "type": "string" }
           },
-          "required": ["ca", "cert", "key"]
+          "required": ["ca", "key", "cert"]
         }
       }
     }

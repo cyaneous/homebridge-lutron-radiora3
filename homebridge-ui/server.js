@@ -1,5 +1,5 @@
 const { HomebridgePluginUiServer, RequestError } = require('@homebridge/plugin-ui-utils');
-const { ProcessorFinder, LeapClient, PairingClient } = require('lutron-leap');
+const { ProcessorFinder, LeapClient, PairingClient } = require('../dist/leap');
 
 const forge = require('node-forge');
 
