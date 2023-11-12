@@ -203,11 +203,25 @@ export class LutronRadioRA3Platform
     }
 
     private async discoverDevices(processor: Processor) {
+        let processorInfo: DeviceDefinition;
+        try {
+            processorInfo = await processor.getProcessorInfo();
+            this.log.info('Processor', processor.processorID, 'is running firmware', processorInfo.FirmwareImage.Firmware.DisplayName);
+        } catch (e) {
+            this.log.error('Failed to get processor info, aborting discovery for processor', processor.processorID, ':', e);
+            return;
+        }
+
+        if (processorInfo.DeviceType !== 'RadioRa3Processor') {
+            this.log.error('This is not a RadioRA 3 processor, aborting discovery for processor', processor.processorID);
+            return;
+        }
+
         let project: ProjectDefinition;
         try {
             project = await processor.getProject();
-        } catch {
-            this.log.error('Failed to read the project, aborting discovery for processor', processor.processorID);
+        } catch (e) {
+            this.log.error('Failed to read the project, aborting discovery for processor', processor.processorID, ':', e);
             return;
         }
 
@@ -221,8 +235,8 @@ export class LutronRadioRA3Platform
         let areas: AreaDefinition[];
         try {
             areas = await processor.getAreas();
-        } catch {
-            this.log.error('Failed to retrieve areas for processor', processor.processorID);
+        } catch (e) {
+            this.log.error('Failed to retrieve areas for processor', processor.processorID, ':', e);
             return;
         }
 
@@ -234,8 +248,8 @@ export class LutronRadioRA3Platform
             let controlStations: ControlStationDefinition[];
             try {
                 controlStations = await processor.getAreaControlStations(area);
-            } catch {
-                this.log.error('Failed to retrieve control stations for area', area.href); 
+            } catch (e) {
+                this.log.error('Failed to retrieve control stations for area', area.href, ':', e); 
                 continue;
             }
 
@@ -248,8 +262,8 @@ export class LutronRadioRA3Platform
                     let device: DeviceDefinition;
                     try {
                         device = await processor.getDevice(gangedDevice.Device);
-                    } catch {
-                        this.log.error('Failed to retrieve ganged device', gangedDevice.Device.href); 
+                    } catch (e) {
+                        this.log.error('Failed to retrieve ganged device', gangedDevice.Device.href, ':', e); 
                         continue;
                     }
                     if (device.AddressedState === 'Addressed') {

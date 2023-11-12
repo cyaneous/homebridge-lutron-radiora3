@@ -33,14 +33,6 @@ const PING_INTERVAL_MS = 30000;
 const PING_TIMEOUT_MS = 5000;
 const CONNECT_MAX_RETRY = 20;
 
-export interface ProcessorInfo {
-    firmwareRevision: string;
-    manufacturer: string;
-    model: string;
-    name: string;
-    serialNumber: string;
-}
-
 type ProcessorEvents = {
     unsolicited: (processorID: string, response: Response) => void;
     disconnected: () => void;
@@ -155,18 +147,11 @@ export class Processor extends (EventEmitter as new () => TypedEmitter<Processor
         throw new Error('Got bad response to getProject() request');
     }
 
-    public async getProcessorInfo(): Promise<ProcessorInfo> {
+    public async getProcessorInfo(): Promise<DeviceDefinition> {
         logDebug('getting processor information');
         const raw = await this.client.request('ReadRequest', '/device?where=IsThisDevice:true');
-        if ((raw.Body! as OneDeviceDefinition).Device) {
-            const device = (raw.Body! as OneDeviceDefinition).Device;
-            return {
-                firmwareRevision: device.FirmwareImage.Firmware.DisplayName,
-                manufacturer: 'Lutron Electronics Co., Inc',
-                model: device.ModelNumber,
-                name: device.Name,
-                serialNumber: device.SerialNumber,
-            };
+        if ((raw.Body! as MultipleDeviceDefinition).Devices.length === 1) {
+            return (raw.Body! as MultipleDeviceDefinition).Devices[0];
         }
         throw new Error('Got bad response to getProcessorInfo() request');
     }

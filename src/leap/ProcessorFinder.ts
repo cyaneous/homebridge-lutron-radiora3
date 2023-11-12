@@ -82,32 +82,25 @@ export class ProcessorFinder extends (EventEmitter as new () => TypedEmitter<Pro
     }
 
     private extractIp(haps: HostAndPort[]): string | undefined {
+        const ipv6Regex = /^([\da-f]{1,4}:){7}[\da-f]{1,4}$/i;
+
         for (const hostandport of haps) {
             logDebug('checking', hostandport);
 
             // prefer the ipv6 address, but only if it's reachable
-            //
-            // FIXME: this code is untested in real life, as my home network is
-            // ipv4 only.
-
-            const _ip = hostandport.host;
+            const ip = hostandport.host;
             try {
-                const addr = new ipaddress.Address6(_ip);
-                if (!addr.isLinkLocal() && !addr.isLoopback()) {
-                    // TODO is this sufficient?
-                    return _ip;
-                    break;
+                if (ipv6Regex.test(ip)) {
+                    const addr = new ipaddress.Address6(ip);
+                    if (!addr.isLinkLocal() && !addr.isLoopback()) {
+                        return ip;
+                    }
+                } else {
+                    const _ = new ipaddress.Address4(ip);
+                    return ip;
                 }
             } catch (e) {
-                // try again, but as ipv4
-                logDebug('was not ipv6:', e);
-                try {
-                    const _ = new ipaddress.Address4(_ip);
-                    return _ip;
-                } catch (e) {
-                    // okay, apparently it's some garbage. log it and move on
-                    logDebug('could not parse HostAndPort', hostandport, 'because', e);
-                }
+                logDebug('could not parse HostAndPort', hostandport, ':', e);
             }
         }
 
