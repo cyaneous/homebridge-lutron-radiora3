@@ -280,7 +280,7 @@ export class LutronRadioRA3Platform
             accessory = new this.api.platformAccessory(fullyQualifiedName, uuid);
         }
 
-        const result = await this.wireAccessory(accessory, processor, area, controlStation, device, fullyQualifiedName);
+        const result = await this.wireAccessory(accessory, processor, device, fullyQualifiedName);
         switch (result.kind) {
             case DeviceWireResultType.Error: {
                 if (isFromCache) {
@@ -310,8 +310,6 @@ export class LutronRadioRA3Platform
     async wireAccessory(
         accessory: PlatformAccessory,
         processor: Processor,
-        area: AreaDefinition,
-        controlStation: ControlStationDefinition,
         device: DeviceDefinition,
         fullyQualifiedName: string,
     ): Promise<DeviceWireResult> {
@@ -320,6 +318,7 @@ export class LutronRadioRA3Platform
         accessory.displayName = fullyQualifiedName;
 
         switch (device.DeviceType) {
+            // supported Sunnata keypads
             case 'SunnataKeypad':
             case 'SunnataHybridKeypad': {
                 this.log.info(`Found a ${device.DeviceType}: ${fullyQualifiedName}`);
