@@ -276,12 +276,11 @@ export class LutronRadioRA3Platform
         if (accessory === undefined) {
             isFromCache = false;
             // new device, create an accessory
-            accessory = new this.api.platformAccessory(fullyQualifiedName, uuid);
             this.log.debug(`Device ${fullyQualifiedName} not found in accessory cache`);
+            accessory = new this.api.platformAccessory(fullyQualifiedName, uuid);
         }
 
         const result = await this.wireAccessory(accessory, processor, area, controlStation, device, fullyQualifiedName);
-        accessory.displayName = fullyQualifiedName;
         switch (result.kind) {
             case DeviceWireResultType.Error: {
                 if (isFromCache) {
@@ -318,6 +317,7 @@ export class LutronRadioRA3Platform
     ): Promise<DeviceWireResult> {
         accessory.context.device = device;
         accessory.context.processorID = processor.processorID;
+        accessory.displayName = fullyQualifiedName;
 
         switch (device.DeviceType) {
             case 'SunnataKeypad':
