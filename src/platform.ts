@@ -308,7 +308,7 @@ export class LutronRadioRA3Platform
                     this.log.debug(`un-registered cached device ${fullyQualifiedName} because it was skipped`);
                     this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
                 }
-                return Promise.resolve(`Skipped setting up device: ${result.reason}`);
+                return Promise.resolve(`Skipped wiring device: ${result.reason}`);
             }
             case DeviceWireResultType.Success: {
                 if (!isFromCache) {
@@ -316,7 +316,7 @@ export class LutronRadioRA3Platform
                     this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
                     this.log.debug(`registered new device ${fullyQualifiedName} because it was new`);
                 }
-                return Promise.resolve(`Set up device ${fullyQualifiedName}`);
+                return Promise.resolve(`Successfully wired device ${fullyQualifiedName}`);
             }
         }
     }
