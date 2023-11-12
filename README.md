@@ -17,10 +17,7 @@ This project is based on [lutron-leap-js](https://github.com/thenewwazoo/lutron-
 (rough notes)
 
 * Check this out
-* Check out the lutron-leap-js repo
-* Make changes there and `npm run build` it
-* `npm install ../lutron-leap-js`
-* Make changes here
+* Make changes
 * `rm ~/.homebridge/accessories/cachedAccessories; DEBUG='leap:*,HAP-NodeJS:Accessory' npm run watch`
 * `npm run lint`
 
