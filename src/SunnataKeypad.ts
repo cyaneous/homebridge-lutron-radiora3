@@ -2,9 +2,7 @@ import { Service, PlatformAccessory } from 'homebridge';
 
 import { GlobalOptions, LutronRadioRA3Platform, DeviceWireResult, DeviceWireResultType } from './platform';
 import { ButtonTracker } from './buttonTracker';
-import { ExceptionDetail, OneButtonStatusEvent, Response, Processor, ButtonDefinition } from './leap';
-
-import { inspect } from 'util';
+import { ExceptionDetail, OneButtonStatusEvent, Response, Processor } from './leap';
 
 export class SunnataKeypad {
     private services: Map<string, Service> = new Map();
@@ -98,7 +96,7 @@ export class SunnataKeypad {
                         button.href,
                         this.options.clickSpeedDouble,
                         this.options.clickSpeedLong,
-                        false
+                        false,
                     ),
                 );
 

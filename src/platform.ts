@@ -203,7 +203,7 @@ export class LutronRadioRA3Platform
     }
 
     private async discoverDevices(processor: Processor) {
-        let project: ProjectDefinition
+        let project: ProjectDefinition;
         try {
             project = await processor.getProject();
         } catch {

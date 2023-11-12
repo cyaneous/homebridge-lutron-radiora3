@@ -1,8 +1,8 @@
- import { Service, PlatformAccessory } from 'homebridge';
+import { Service, PlatformAccessory } from 'homebridge';
 
 import { GlobalOptions, LutronRadioRA3Platform, DeviceWireResult, DeviceWireResultType } from './platform';
 import { ButtonTracker } from './buttonTracker';
-import { ExceptionDetail, OneButtonStatusEvent, Response, Processor, ButtonDefinition } from './leap';
+import { ExceptionDetail, OneButtonStatusEvent, Response, Processor } from './leap';
 
 import { inspect } from 'util';
 
