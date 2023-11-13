@@ -109,8 +109,6 @@ export class PicoRemote {
     }
 
     async initialize(): Promise<DeviceWireResult> {
-        const fullName = this.accessory.context.device.FullyQualifiedName.join(' ');
-
         this.accessory
             .getService(this.platform.api.hap.Service.AccessoryInformation)!
             .setCharacteristic(this.platform.api.hap.Characteristic.Manufacturer, 'Lutron Electronics Co., Inc')
@@ -132,10 +130,10 @@ export class PicoRemote {
         try {
             buttonGroups = await this.processor.getDeviceButtonGroupsExpanded(this.accessory.context.device);
         } catch (e) {
-            this.platform.log.error('Failed to get button groups belonging to', fullName, e);
+            this.platform.log.error('Failed to get button groups belonging to', this.accessory.displayName, e);
             return {
                 kind: DeviceWireResultType.Error,
-                reason: `Failed to get button groups belonging to ${fullName}: ${e}`,
+                reason: `Failed to get button groups belonging to ${this.accessory.displayName}: ${e}`,
             };
         }
 
@@ -225,15 +223,14 @@ export class PicoRemote {
 
         return {
             kind: DeviceWireResultType.Success,
-            name: fullName,
+            name: this.accessory.displayName,
         };
     }
 
     handleEvent(response: Response): void {
         const evt = (response.Body! as OneButtonStatusEvent).ButtonStatus;
-        const fullName = this.accessory.context.device.FullyQualifiedName.join(' ');
         this.platform.log.info(
-            `Button ${evt.Button.href} on Pico remote ${fullName} got action ${evt.ButtonEvent.EventType}`,
+            `Button ${evt.Button.href} on Pico remote ${this.accessory.displayName} got action ${evt.ButtonEvent.EventType}`,
         );
         this.trackers.get(evt.Button.href)!.update(evt.ButtonEvent.EventType);
     }

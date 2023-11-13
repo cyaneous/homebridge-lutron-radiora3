@@ -18,8 +18,6 @@ export class SunnataKeypad {
     }
 
     async initialize(): Promise<DeviceWireResult> {
-        const fullName = this.accessory.context.device.Name;
-
         this.accessory
             .getService(this.platform.api.hap.Service.AccessoryInformation)!
             .setCharacteristic(this.platform.api.hap.Characteristic.Manufacturer, 'Lutron Electronics Co., Inc')
@@ -41,10 +39,10 @@ export class SunnataKeypad {
         try {
             buttonGroups = await this.processor.getDeviceButtonGroupsExpanded(this.accessory.context.device);
         } catch (e) {
-            this.platform.log.error('Failed to get button groups belonging to', fullName, e);
+            this.platform.log.error('Failed to get button groups belonging to', this.accessory.displayName, e);
             return {
                 kind: DeviceWireResultType.Error,
-                reason: `Failed to get button groups belonging to ${fullName}: ${e}`,
+                reason: `Failed to get button groups belonging to ${this.accessory.displayName}: ${e}`,
             };
         }
 
@@ -115,7 +113,7 @@ export class SunnataKeypad {
 
         return {
             kind: DeviceWireResultType.Success,
-            name: fullName,
+            name: this.accessory.displayName,
         };
     }
 
