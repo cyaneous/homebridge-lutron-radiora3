@@ -1,7 +1,7 @@
 {
     "displayName": "Homebridge Lutron RadioRA 3",
     "name": "homebridge-lutron-radiora3",
-    "version": "0.0.4",
+    "version": "0.0.5",
     "description": "Homebridge support for Lutron RadioRA 3 keypads, etc.",
     "license": "Apache-2.0",
     "repository": {
