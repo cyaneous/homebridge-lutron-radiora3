@@ -447,7 +447,6 @@ export type ButtonStatus = Href & {
 
 export type DeviceDefinition = Href & {
     Name: string;
-    //FullyQualifiedName: string[];
     Parent: Href;
     SerialNumber: string;
     ModelNumber: string;
