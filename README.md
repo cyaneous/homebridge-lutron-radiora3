@@ -1,6 +1,6 @@
 # LutronRadioRA3
 
-This plugin adds RadioRA 3 support to HomeBridge/HomeKit.
+This plugin adds RadioRA 3 support to HomeBridge.
 
 It currently supports:
 
