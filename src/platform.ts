@@ -112,7 +112,6 @@ export class LutronRadioRA3Platform
         return Object.assign(
             {
                 filterPico: false,
-                filterBlinds: false,
                 clickSpeedDouble: 'default',
                 clickSpeedLong: 'default',
             },

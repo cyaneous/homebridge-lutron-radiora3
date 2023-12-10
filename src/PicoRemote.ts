@@ -143,6 +143,15 @@ export class PicoRemote {
             }
         });
 
+        // if there are any buttongroups that are already associated in the
+        // lutron app, and we've been told to skip them, return early.
+        if (buttonGroups.some((buttonGroup) => buttonGroup.AffectedZones !== undefined) && this.options.filterPico) {
+            return {
+                kind: DeviceWireResultType.Skipped,
+                reason: 'Associated with a device outside HomeKit',
+            };
+        }
+
         for (const buttonGroup of buttonGroups) {
             for (const button of buttonGroup.Buttons) {
                 const dentry = BUTTON_MAP.get(this.accessory.context.device.DeviceType);
